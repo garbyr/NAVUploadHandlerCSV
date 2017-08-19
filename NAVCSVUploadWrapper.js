@@ -146,6 +146,8 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
         var success = {
             Result: "Successfully process all records"
         };
+        error = false;
+        errorMessage = [];
         callback(null, success);
  });
 }
@@ -226,7 +228,7 @@ raiseError = function(requestUUID, user, callback){
     var errorObj = {
         requestUUID: requestUUID,
         user: user,
-        messages: errorMessages,
+        messages: errorMessage,
     }
 //write the error to dynamo directly from this wrapper
     var dynamo = new aws.DynamoDB();
@@ -239,12 +241,15 @@ raiseError = function(requestUUID, user, callback){
         Function: { "S": functionName},
         Errors: { "S": JSON.stringify(errorMessage) }
     }
-
+    //reset global variables just in case container is reused
+    error = false;
+    errorMessage=[];
+    //
     var params = {
         TableName: tableName,
         Item: item
     }
-
+    console.log(params);
     dynamo.putItem(params, function (err, data) {
         if (err) {
             console.log("ERROR: error table not updated", err);

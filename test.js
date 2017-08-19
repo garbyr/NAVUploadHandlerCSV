@@ -1,5 +1,5 @@
 // Our Lambda function fle is required 
-var index = require('./uploadWrapper.js');
+var index = require('./NAVCSVUploadWrapper.js');
 
 // The Lambda context "done" function is called when complete with/without error
 var context = {
