@@ -98,7 +98,7 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
     var NAV;
     var calculationDate;
     var header = true;
-    var shareClassDescription;
+    var ISINDescription;
     var calculateSRRI;
     var count = 0;
     //get the document 
@@ -112,7 +112,7 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
         if (header == false) {
             var array = line.split(",");
             ISIN = array[0];
-            shareClassDescription = array[1];
+            ISINDescription = array[1];
             NAV = array[2];
             calculationDate = array[3];
             calculateSRRI = array[4];
@@ -126,8 +126,8 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
                 category: uploadObj.category,
                 frequency: uploadObj.frequency,
                 user: uploadObj.user,
-                description: shareClassDescription,
-                expectedSequence: uploadObj.sequence.toString(),
+                ISINDescription: ISINDescription,
+                sequence: uploadObj.sequence.toString(),
                 calculateSRRI: calculateSRRI,
                 calculationDate: calculationDate,
                 stateMachine: "processNAVUpload"
@@ -228,6 +228,7 @@ raiseError = function(requestUUID, user, callback){
     var errorObj = {
         requestUUID: requestUUID,
         user: user,
+        function: functionName,
         messages: errorMessage,
     }
 //write the error to dynamo directly from this wrapper
