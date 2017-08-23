@@ -3,6 +3,7 @@ const readline = require('readline');
 const aws = require('aws-sdk');
 aws.config.update({ region: 'eu-west-1' });
 var DV = require('./dateHelper.js');
+var RE = require('./raiseError.js');
 var error = false;
 var errorMessage = [];
 var functionName;
@@ -20,7 +21,15 @@ exports.handler = (event, context, callback) => {
     };
     functionName = context.functionName;
     console.log("INFO: bucket ID- " + bucket + ", key- " + key);
-    mainProcess(s3, params, context, event, processFile, callback);
+    if(key.substr((key.length -3), 3) != 'csv'){
+        errorMessage.push("ERROR: invalid file format - csv required to process upload");
+        var errorMessageX = errorMessage;
+        errorMessage = [];
+        error =false;
+        RE.raiseError(generateUUID(), 'unknown', functionName, errorMessageX, callback);
+    }else{
+        mainProcess(s3, params, context, event, processFile, callback);
+    }
 }
 
 
@@ -37,15 +46,19 @@ mainProcess = function (s3, params, context, event, _callback, callback) {
         commences: "",
         sequence: 0
     }
+    //waitfor s3 object
+
     //get request to S3 for header object
-    s3.headObject(params, function (err, response) {
+    s3.waitFor('objectExists', params, function (err, response) {
         if (err) {
             //context.callbackWaitsForEmptyEventLoop = false;
             console.log("ERROR: failed to get header from S3", err);
             console.log("ERROR: No NAV values have been updated");
-            error = true;
             errorMessage.push("No NAV values updates as failed to retrieve S3 header object");
-            raiseError(uploadObj.uploadUUID, uploadObj.user, callback);
+            var errorMessageX = errorMessage;
+            errorMessage = [];
+            error =false;
+            RE.raiseError(uploadObj.uploadUUID, uploadObj.user, functionName, errorMessageX, callback);
         } else {
             console.log("SUCCESS: got header from S3");
             uploadObj.user = response.Metadata.user;
@@ -84,7 +97,7 @@ mainProcess = function (s3, params, context, event, _callback, callback) {
             if (error) {
                 console.log("ERROR: Invalid upload parameters.");
                 console.log("ERROR: No NAV values have been updated");
-                raiseError(uploadObj.uploadUUID, uploadObj.user, callback);
+                RE.raiseError(uploadObj.uploadUUID, uploadObj.user, callback);
             } else {
                 console.log("SUCCESS: retrieved S3 head object with valid parameters");
                 _callback(uploadObj, params, s3, event, context, callback);
@@ -98,7 +111,6 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
     var NAV;
     var calculationDate;
     var header = true;
-    var ISINDescription;
     var calculateSRRI;
     var count = 0;
     //get the document 
@@ -112,10 +124,9 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
         if (header == false) {
             var array = line.split(",");
             ISIN = array[0];
-            ISINDescription = array[1];
-            NAV = array[2];
-            calculationDate = array[3];
-            calculateSRRI = array[4];
+            NAV = array[1];
+            calculationDate = array[2];
+            calculateSRRI = array[3];
             count += 1;
 
             //send the share class, for processing
@@ -126,7 +137,6 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
                 category: uploadObj.category,
                 frequency: uploadObj.frequency,
                 user: uploadObj.user,
-                ISINDescription: ISINDescription,
                 sequence: uploadObj.sequence.toString(),
                 calculateSRRI: calculateSRRI,
                 calculationDate: calculationDate,
@@ -224,45 +234,6 @@ createSequence = function (dateIn, frequency) {
     return sequence;
 }
 
-raiseError = function(requestUUID, user, callback){
-    var errorObj = {
-        requestUUID: requestUUID,
-        user: user,
-        function: functionName,
-        messages: errorMessage,
-    }
-//write the error to dynamo directly from this wrapper
-    var dynamo = new aws.DynamoDB();
-    var tableName = "ErrorLog";
-    var item = {
-        RequestUUID: { "S": requestUUID },
-        CreatedTimeStamp: { "N": new Date().getTime().toString() },
-        CreatedDateTime: { "S": new Date().toUTCString() },
-        CreateUser: { "S": user },
-        Function: { "S": functionName},
-        Errors: { "S": JSON.stringify(errorMessage) }
-    }
-    //reset global variables just in case container is reused
-    error = false;
-    errorMessage=[];
-    //
-    var params = {
-        TableName: tableName,
-        Item: item
-    }
-    console.log(params);
-    dynamo.putItem(params, function (err, data) {
-        if (err) {
-            console.log("ERROR: error table not updated", err);
-             callback(errorObj);
-        }
-        else {
-            console.log("SUCCESS: error table updated", data);
-             callback(errorObj);
-        }
-
-    });
-}
 
 
    
