@@ -117,6 +117,7 @@ processFile = function (uploadObj, params, s3, event, context, callback) {
     const rl = readline.createInterface({
         input: s3.getObject(params).createReadStream()
     });
+    //first get the number of rows...scale out dynamoDB
 
     /* TODO validate; if error publish unprocessed file topic and quit */
     console.log("INFO: begin processing file");
